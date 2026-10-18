@@ -10,7 +10,7 @@ function abrirSesionPadre(res: Response, padreId: string) {
     httpOnly: true,
     secure: isProduction,
     sameSite: 'strict',
-    maxAge: 24 * 60 * 60 * 1000,
+    maxAge: env.PARENT_SESSION_HOURS * 60 * 60 * 1000,
   });
 }
 

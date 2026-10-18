@@ -5,7 +5,7 @@ import cookieParser from 'cookie-parser';
 import compression from 'compression';
 import pinoHttp from 'pino-http';
 import { env } from './config/env';
-import { logger } from './lib/logger';
+import { httpLogSerializers, logger } from './lib/logger';
 import { apiLimiter } from './middleware/rateLimiters';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
 import { apiRouter } from './routes';
@@ -13,9 +13,10 @@ import { apiRouter } from './routes';
 export function createApp() {
   const app = express();
 
-  // Detrás de un proxy/load balancer en producción, para que rate-limit y
-  // cookies "secure" vean el protocolo/IP reales del cliente.
-  app.set('trust proxy', 1);
+  // Solo los proxies que de verdad hay delante (TRUST_PROXY): así rate-limit y
+  // cookies "secure" ven la IP/protocolo reales sin aceptar un X-Forwarded-For
+  // inventado por el cliente.
+  app.set('trust proxy', env.TRUST_PROXY);
 
   app.use(helmet());
   app.use(
@@ -27,7 +28,7 @@ export function createApp() {
   app.use(compression());
   app.use(cookieParser());
   app.use(express.json({ limit: '100kb' })); // límite bajo: esta API no recibe archivos
-  app.use(pinoHttp({ logger }));
+  app.use(pinoHttp({ logger, serializers: httpLogSerializers }));
   app.use(apiLimiter);
 
   app.use('/api', apiRouter);

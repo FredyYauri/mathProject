@@ -39,7 +39,7 @@ export function requireParentAuth(req: Request, _res: Response, next: NextFuncti
 
 export function signParentToken(parentId: string): string {
   return jwt.sign({ parentId } satisfies ParentTokenPayload, env.JWT_SECRET, {
-    expiresIn: env.JWT_EXPIRES_IN,
+    expiresIn: `${env.PARENT_SESSION_HOURS}h`,
     audience: PARENT_AUDIENCE,
   } as jwt.SignOptions);
 }
