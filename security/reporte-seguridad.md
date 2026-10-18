@@ -14,7 +14,7 @@
 | Severidad | Cantidad | Resueltos |
 |---|---|---|
 | 🔴 Alta | 3 | 3 |
-| 🟠 Media | 7 | 1 |
+| 🟠 Media | 7 | 2 |
 | 🟡 Baja | 9 | 1 |
 | ⚪ Informativa / buenas prácticas | 5 | 0 |
 
@@ -111,21 +111,34 @@ Para no romperlo al corregir lo demás:
 - **Dónde:** `backend/src/middleware/rateLimiters.ts`
 - **Qué pasa:** con más de una instancia o tras un reinicio, los contadores se multiplican o se reinician. El límite de login cuenta solo por IP, sin límite por cuenta, así que un ataque distribuido contra un mismo correo no se detecta. Además, en un colegio muchos niños y padres comparten una IP (NAT): 300 req/15 min por IP en `apiLimiter` puede bloquear a un aula entera.
 - **Corrección propuesta:** usar un store compartido (Redis o Postgres) cuando haya más de una instancia; agregar un límite de login por correo; aplicar `apiLimiter` a la experiencia del niño por `estudianteId` de la sesión en vez de por IP. Cualquier cambio de rate limit requiere aprobación (ver la skill).
-- **Resolución:**
+- **Resolución (parcial, 2026-10-18):** el usuario aprobó pasar el store a Postgres al elegir desplegar todo en Vercel.
+  - Los contadores viven en la tabla `limites_tasa` (`LimiteTasaStore` en `backend/src/services/limiteTasa.service.ts`). Se compartirán entre las instancias serverless y sobreviven a los reinicios.
+  - El incremento es un solo `INSERT ... ON CONFLICT` atómico. La clave es un SHA-256 de `prefijo:IP`, así que la IP no se guarda en claro, y las filas vencidas se borran solas.
+  - `/api/health` quedó fuera del límite.
+  - Tests en `backend/test/limiteTasa.test.ts`: dos instancias comparten el contador, 20 requests simultáneas cuentan 20, la ventana vence, `decrement`/`resetKey` funcionan y no hay IP en claro.
+  - **Falta:** el límite de login por correo y el límite del niño por `estudianteId` en vez de por IP (el caso de un aula con NAT).
 
-### - [ ] SEC-08 · `imagenUrl` sin restricciones: imágenes de terceros pueden rastrear a los niños
+### - [x] SEC-08 · `imagenUrl` sin restricciones: imágenes de terceros pueden rastrear a los niños
 
 - **Dónde:** `frontend/src/components/estudiante/ContenidoOpcion.tsx:7`, `frontend/src/pages/estudiante/LeccionPage.tsx:180`, `frontend/src/pages/estudiante/SimulacroPage.tsx:218`, `backend/prisma/schema.prisma` (`Pregunta.imagenUrl`, `Opcion.imagenUrl`)
 - **Qué pasa:** cualquier URL cargada en la BD se renderiza tal cual en `<img src>`. Si el contenido apunta a un dominio externo, el navegador del niño le envía su IP, su user-agent y el `Referer` a ese tercero. Esto va contra la misma razón por la que se empaquetó la fuente Andika. Tampoco hay CSP en el frontend que lo impida (ver SEC-09).
 - **Corrección propuesta:** servir las imágenes desde el mismo origen o desde un bucket propio; validar en el seed o en la carga que `imagenUrl` sea relativa o de un host permitido; CSP `img-src 'self' <cdn-propio>`; `referrerpolicy="no-referrer"` en las `<img>`.
-- **Resolución:**
+- **Resolución (2026-10-18):** se resuelve con la CSP de SEC-09.
+  - `img-src 'self' data:` hace que el navegador no cargue imágenes de otros dominios, aunque estén en la BD.
+  - `Referrer-Policy: no-referrer` está aplicada a todo el sitio.
+  - El contenido actual usa SVG embebidos (`data:image/svg+xml`, ver `imagenTexto` en `seed.ts`), así que no se rompe nada.
+  - **Regla para cargar contenido:** las imágenes van como `data:` o servidas desde el mismo dominio. Si algún día se usa un bucket o CDN propio, agregar ese host a `img-src` en `vercel.json`, nunca un comodín.
 
 ### - [ ] SEC-09 · El frontend no tiene cabeceras de seguridad ni CSP definidas
 
 - **Dónde:** `frontend/index.html`, `frontend/vite.config.ts` (no hay configuración de despliegue)
 - **Qué pasa:** helmet protege solo las respuestas de la API. El HTML/JS del frontend se servirá desde un hosting estático sin CSP, `X-Frame-Options`/`frame-ancestors`, HSTS ni `Referrer-Policy`. Sin `frame-ancestors`, el área de padres puede incrustarse en otro sitio (clickjacking).
 - **Corrección propuesta:** definir las cabeceras en el hosting elegido (por ejemplo `_headers`, `vercel.json` o nginx). Punto de partida: `default-src 'self'; img-src 'self' data:; connect-src 'self' <API_URL>; frame-ancestors 'none'; base-uri 'self'; form-action 'self'`, más `Referrer-Policy: no-referrer` y HSTS.
-- **Resolución:**
+- **Resolución (configurada, falta verificarla en el deploy):** cabeceras en `vercel.json` para todo lo que no es `/api/` (la API ya tiene las de helmet):
+  - CSP `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests`;
+  - HSTS de 2 años, `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` y `Permissions-Policy` sin cámara, micrófono, geolocalización ni pagos.
+
+  El `index.html` compilado no tiene scripts ni estilos inline, así que la CSP no necesita `'unsafe-inline'`. La barra de Vercel (vercel.live) queda bloqueada en las previews, y es a propósito. **Marcar cuando se verifique en el deploy** con DevTools o `curl -I`, y recorriendo la app sin errores de CSP en la consola.
 
 ### - [x] SEC-10 · Dependencias con vulnerabilidades conocidas (`npm audit`)
 
@@ -275,3 +288,4 @@ No hay pipeline que corra `npm audit`, lint, tests ni `npm ci` con el lockfile c
 | 2026-10-18 | Auditoría inicial sobre `f9da30d`. |
 | 2026-10-18 | Resueltos SEC-01, SEC-02 y SEC-03; SEC-17 parcial. Backend: 58 tests pasan, typecheck y lint sin problemas. |
 | 2026-10-18 | Resueltos SEC-10 (0 vulnerabilidades en `npm audit`; vitest 4.1.11) y SEC-12. Backend: 60 tests; e2e: 2/2 (móvil y escritorio). |
+| 2026-10-18 | Preparación del deploy en Vercel: SEC-08 resuelto, SEC-09 configurado (falta verificar en el deploy), SEC-07 parcial (rate limit en Postgres). Backend: 65 tests; e2e: 2/2, dos corridas seguidas. |

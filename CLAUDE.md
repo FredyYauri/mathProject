@@ -79,10 +79,25 @@ personales, cuentas, o contenido debe considerar desde el diseño:
 frontend/   React + Vite + TS — experiencia del niño y sección de padres/tutores
 backend/    Node.js + Express + TS + Prisma — API REST sobre PostgreSQL
 docker-compose.yml   Postgres local para desarrollo (no usar en producción)
+vercel.json + api/   Despliegue en Vercel (ver abajo)
+security/            Reporte de seguridad: hallazgos para ir marcando al resolverlos
 ```
 
 `frontend/` y `backend/` son proyectos npm independientes: cada uno se instala y
 corre por separado, no hay un `package.json` raíz.
+
+### Despliegue (Vercel)
+
+Un solo proyecto de Vercel con la raíz del repo como Root Directory: el frontend
+se sirve estático (`frontend/dist`) y el backend corre como función serverless
+(`api/index.ts` importa `createApp()`), con `/api/*` reescrito a ella. Mismo
+dominio a propósito: las cookies `sameSite=strict` no viajarían entre dos
+dominios `*.vercel.app` distintos. Las cabeceras de seguridad del frontend (CSP,
+HSTS, etc.) están en `vercel.json`. Postgres es Neon (Marketplace de Vercel); las
+migraciones corren en el build solo en producción, con `DATABASE_URL_UNPOOLED`.
+Variables del proyecto: `NODE_ENV=production`, `TRUST_PROXY=1`, `CORS_ORIGIN`
+(URL https de producción), `JWT_SECRET`, `VITE_API_URL=/api`, más las de Neon.
+El rate limit guarda sus contadores en Postgres (`limites_tasa`), no en memoria.
 
 ### Backend (`backend/`)
 

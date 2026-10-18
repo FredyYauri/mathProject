@@ -242,3 +242,15 @@ model SimulacroResultado {
   @@index([estudianteId])
   @@map("simulacro_resultados")
 }
+
+// Contadores del rate limit (middleware/rateLimiters.ts). En Postgres y no en
+// memoria: en Vercel cada instancia serverless tendría su propio contador. La
+// clave es un hash (no la IP en claro) y las filas vencidas se borran solas.
+model LimiteTasa {
+  clave      String   @id
+  hits       Int
+  reiniciaEn DateTime
+
+  @@index([reiniciaEn])
+  @@map("limites_tasa")
+}

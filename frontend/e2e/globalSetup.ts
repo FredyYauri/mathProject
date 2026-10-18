@@ -13,4 +13,7 @@ export default function globalSetup() {
   const opciones = { cwd: '../backend', env: { ...process.env, DATABASE_URL: E2E_DATABASE_URL }, stdio: 'pipe' as const };
   execSync('npx prisma migrate deploy', opciones);
   execSync('npx prisma db seed', opciones);
+  // Lo único que sí se vacía: los contadores del rate limit viven en la base, y
+  // con varias corridas seguidas el límite de 5 registros por hora se agotaría.
+  execSync('npx prisma db execute --stdin --schema prisma/schema.prisma', { ...opciones, input: 'DELETE FROM "limites_tasa";' });
 }
