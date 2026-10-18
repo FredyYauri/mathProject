@@ -99,6 +99,17 @@ Variables del proyecto: `NODE_ENV=production`, `TRUST_PROXY=1`, `CORS_ORIGIN`
 (URL https de producción), `JWT_SECRET`, `VITE_API_URL=/api`, más las de Neon.
 El rate limit guarda sus contadores en Postgres (`limites_tasa`), no en memoria.
 
+### CI/CD (GitHub Actions)
+
+`.github/workflows/ci-cd.yml`: en cada PR y push a `main` corre backend (lint,
+typecheck, build, tests contra un Postgres de servicio), frontend (lint, build) y
+el e2e de Playwright. Solo en `main` y con todo en verde despliega a producción
+con `vercel deploy --prod` (build remoto, porque las variables de Neon son
+*sensitive* y solo existen en Vercel) y hace un smoke test. Vercel no despliega
+solo al recibir pushes (`git.deploymentEnabled: false` en `vercel.json`): el
+workflow es el único camino a producción. Secrets del repo: `VERCEL_TOKEN`,
+`VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`.
+
 ### Backend (`backend/`)
 
 - `src/routes` → `controllers` (capa fina) → `services` (lógica de negocio, únicos
