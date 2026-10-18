@@ -1,0 +1,8 @@
+# Cada subproyecto (frontend/, backend/) tiene su propio .gitignore específico
+# para sus dependencias y build output. Este archivo cubre solo lo transversal.
+
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

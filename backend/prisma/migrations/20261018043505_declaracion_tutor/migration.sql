@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "padres_tutores" ADD COLUMN     "declaroSerTutorEn" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP;

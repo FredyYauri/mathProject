@@ -1,0 +1,124 @@
+Plantilla Spec-First para Claude
+Estructura tu proyecto antes de escribir una línea de código o prompt
+Créditos: dominicode | Construye con IA: De la Idea al Producto con Claude y Specs
+
+[!IMPORTANTE]
+
+Instrucción: Haz una copia de este documento (Archivo → Hacer una copia) y rellena cada sección antes de abrir Claude.
+
+SECCIÓN 1 — Visión del producto
+La descripción más corta y clara de lo que construyes. Una o dos oraciones. Si no puedes explicarlo en dos oraciones, aún no está claro.
+
+Preguntas guía:
+
+¿Qué hace exactamente este producto?
+¿Para quién es?
+¿Qué problema resuelve en una frase?
+Ejemplo:
+
+"Una herramienta para que freelancers gestionen sus proyectos y facturas desde un solo lugar, sin necesidad de usar hojas de cálculo separadas."
+
+Tu visión:
+
+[Escribe aquí tu respuesta...]
+
+SECCIÓN 2 — Usuarios y casos de uso
+Quién usa el producto y para qué. No perfiles de marketing — acciones concretas que realiza cada tipo de usuario.
+
+Preguntas guía:
+
+¿Quién es el usuario principal?
+¿Hay usuarios con roles diferentes? (admin, usuario estándar, visitante)
+¿Cuáles son las 3 acciones principales que hace cada usuario?
+Ejemplo:
+
+Usuario freelancer: crea proyectos, registra horas trabajadas, genera facturas.
+
+Usuario cliente: ve el progreso del proyecto, aprueba facturas.
+
+Tus usuarios y casos de uso:
+
+[Escribe aquí tu respuesta...]
+
+SECCIÓN 3 — Funcionalidades
+La lista completa de lo que hace el sistema, organizada por módulos. Escribe cada funcionalidad como "El usuario puede..." o "El sistema permite..." Esto te fuerza a pensar desde el comportamiento, no desde el código.
+
+Preguntas guía:
+
+¿Qué módulos tiene el sistema?
+¿Qué puede hacer el usuario en cada módulo?
+¿Qué hace el sistema automáticamente?
+Ejemplo:
+
+Módulo de proyectos:
+
+El usuario puede crear proyectos y editar nombre y descripción.
+El usuario puede archivar proyectos completados.
+El usuario puede ver el historial de horas por proyecto.
+Módulo de facturación:
+
+El sistema calcula el total automáticamente.
+El usuario puede generar una factura en PDF.
+El usuario puede marcar facturas como pagadas.
+Tus funcionalidades:
+
+[Espacio editable por módulos...]
+
+SECCIÓN 4 — Flujos de usuario
+Los pasos exactos que sigue un usuario para completar cada acción principal. Incluye el flujo cuando todo funciona (happy path) y qué pasa cuando algo falla.
+
+Preguntas guía:
+
+¿Cuáles son las 3-5 acciones más importantes en tu producto?
+¿Qué pasos sigue el usuario para completar cada una?
+¿Qué pasa si algo sale mal en cada paso?
+Ejemplo — Crear una factura:
+
+El usuario va a "Facturas" en el menú.
+Hace clic en "Nueva factura".
+Selecciona el proyecto (el sistema rellena automáticamente el cliente y horas).
+El usuario revisa el total y puede editarlo.
+Hace clic en "Generar PDF".
+Error: si no hay horas registradas, el sistema muestra un aviso antes de generar.
+Tus flujos principales:
+
+[Un flujo por acción importante...]
+
+SECCIÓN 5 — Arquitectura
+La estructura técnica del sistema. Qué componentes necesita, cómo se comunican, qué tecnologías usar. Si no tienes decisiones técnicas previas, deja este campo en "a decidir" y usa Claude con el resto de la spec para definirla.
+
+Preguntas guía:
+
+¿Es una app web, móvil o ambas?
+¿Necesita backend propio o puede usar servicios externos?
+¿Cómo se almacenan los datos?
+¿Hay autenticación de usuarios?
+¿Se integra con otros servicios?
+Ejemplo:
+
+Frontend: React (web)
+
+Backend: Node.js + API REST
+
+Base de datos: PostgreSQL
+
+Autenticación: Supabase Auth
+
+Hosting: Vercel (frontend) + Railway (backend)
+
+Tu arquitectura:
+
+[O escribe "A decidir con Claude"...]
+
+SECCIÓN 6 — Requisitos no funcionales
+Las restricciones que el sistema debe cumplir aunque el usuario no las vea directamente. Muchos proyectos los ignoran hasta que el problema aparece en producción.
+
+Preguntas guía:
+
+¿Cuántos usuarios simultáneos necesita soportar?
+¿Hay datos sensibles?
+¿Necesita funcionar sin conexión?
+¿En qué idiomas?
+Ejemplo:
+
+Rendimiento: car

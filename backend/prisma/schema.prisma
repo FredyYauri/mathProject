@@ -1,0 +1,244 @@
+// Modelo de datos v1 — ver spec.md (Secciones 3 y 5) para el detalle funcional
+// y de arquitectura. Jerarquía: Curso -> Unidad -> Nivel -> Leccion -> Pregunta.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TipoPregunta {
+  SELECCION_MULTIPLE
+  SELECCION_IMAGEN
+}
+
+// Tutor legal. No almacena datos personales del niño más allá de un nombre
+// visible dentro de la app (minimización de datos, ver CLAUDE.md).
+model PadreTutor {
+  id                String       @id @default(uuid())
+  email             String       @unique
+  passwordHash      String
+  creadoEn          DateTime     @default(now())
+  // Cuándo declaró, al registrarse, ser mayor de edad y padre/madre/tutor legal.
+  declaroSerTutorEn DateTime     @default(now())
+  estudiantes       Estudiante[]
+
+  @@map("padres_tutores")
+}
+
+model Estudiante {
+  id           String     @id @default(uuid())
+  nombre       String
+  padreTutorId String
+  padreTutor   PadreTutor @relation(fields: [padreTutorId], references: [id], onDelete: Cascade)
+  creadoEn     DateTime   @default(now())
+
+  progresos           Progreso[]
+  sesionesLeccion     SesionLeccion[]
+  sesionesSimulacro   SesionSimulacro[]
+  respuestas          RespuestaRegistro[]
+  resultadosSimulacro SimulacroResultado[]
+
+  @@index([padreTutorId])
+  @@map("estudiantes")
+}
+
+// v1 solo tiene un curso activo (franja Básico, 6-8 años), pero el modelo
+// no lo asume hardcodeado: la franja queda en dato, no en código.
+model Curso {
+  id           String   @id @default(uuid())
+  nombre       String
+  franjaEtaria String // ej. "6-8" — única franja soportada en v1
+  activo       Boolean  @default(true)
+  orden        Int      @default(0)
+  unidades     Unidad[]
+
+  @@map("cursos")
+}
+
+model Unidad {
+  id      String  @id @default(uuid())
+  cursoId String
+  curso   Curso   @relation(fields: [cursoId], references: [id], onDelete: Cascade)
+  nombre  String
+  orden   Int     @default(0)
+  niveles Nivel[]
+
+  @@index([cursoId])
+  @@map("unidades")
+}
+
+model Nivel {
+  id                   String     @id @default(uuid())
+  unidadId             String
+  unidad               Unidad     @relation(fields: [unidadId], references: [id], onDelete: Cascade)
+  nombre               String
+  orden                Int        @default(0)
+  dificultad           Int        @default(1) // 1 (muy fácil) .. 5 (desafío)
+  porcentajeDesbloqueo Int        @default(70) // % mínimo en el nivel anterior para desbloquear este
+  lecciones            Leccion[]
+  progresos            Progreso[]
+
+  @@index([unidadId])
+  @@map("niveles")
+}
+
+model Leccion {
+  id        String          @id @default(uuid())
+  nivelId   String
+  nivel     Nivel           @relation(fields: [nivelId], references: [id], onDelete: Cascade)
+  orden     Int             @default(0)
+  preguntas Pregunta[]
+  sesiones  SesionLeccion[]
+
+  @@index([nivelId])
+  @@map("lecciones")
+}
+
+model Pregunta {
+  id              String              @id @default(uuid())
+  leccionId       String
+  leccion         Leccion             @relation(fields: [leccionId], references: [id], onDelete: Cascade)
+  tipo            TipoPregunta
+  enunciado       String
+  imagenUrl       String?
+  pista           String?
+  explicacion     String?
+  orden           Int                 @default(0)
+  // Configuración de intentos (spec.md §3): con 1 no hay reintento. Al agotarlos
+  // se muestra la respuesta correcta y el niño debe marcarla para continuar.
+  maxIntentos     Int                 @default(2)
+  pistaDesdeError Int                 @default(1) // la pista aparece desde este error (1 = el primero)
+  opciones        Opcion[]
+  respuestas      RespuestaRegistro[]
+
+  @@index([leccionId])
+  @@map("preguntas")
+}
+
+model Opcion {
+  id         String   @id @default(uuid())
+  preguntaId String
+  pregunta   Pregunta @relation(fields: [preguntaId], references: [id], onDelete: Cascade)
+  texto      String?
+  imagenUrl  String?
+  esCorrecta Boolean  @default(false)
+  orden      Int      @default(0)
+
+  @@index([preguntaId])
+  @@map("opciones")
+}
+
+// Progreso de un estudiante en un nivel puntual (estrellas/puntos/desbloqueo).
+model Progreso {
+  id              String     @id @default(uuid())
+  estudianteId    String
+  estudiante      Estudiante @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  nivelId         String
+  nivel           Nivel      @relation(fields: [nivelId], references: [id], onDelete: Cascade)
+  completado      Boolean    @default(false)
+  estrellas       Int        @default(0) // 0-3, la mejor obtenida (rejugar nunca resta)
+  mejorPorcentaje Int        @default(0) // % de acierto del nivel, usado para desbloquear el siguiente
+  puntos          Int        @default(0)
+  intentos        Int        @default(0)
+  actualizadoEn   DateTime   @updatedAt
+
+  @@unique([estudianteId, nivelId])
+  @@map("progresos")
+}
+
+// Una partida de una lección. Las respuestas quedan ligadas a ella para que el
+// resultado se calcule en el servidor. Si el niño abandona, la sesión nunca se
+// completa y no suma progreso (spec.md §3, el progreso parcial no se guarda).
+model SesionLeccion {
+  id           String              @id @default(uuid())
+  estudianteId String
+  estudiante   Estudiante          @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  leccionId    String
+  leccion      Leccion             @relation(fields: [leccionId], references: [id], onDelete: Cascade)
+  iniciadaEn   DateTime            @default(now())
+  completadaEn DateTime?
+  porcentaje   Int? // % de preguntas acertadas al primer intento; null hasta completarla
+  respuestas   RespuestaRegistro[]
+
+  @@index([estudianteId, leccionId])
+  @@map("sesiones_leccion")
+}
+
+// Registro de cada respuesta para detectar temas a reforzar (spec.md §3, módulo de progreso).
+model RespuestaRegistro {
+  id                String           @id @default(uuid())
+  estudianteId      String
+  estudiante        Estudiante       @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  // Exactamente una de las dos sesiones: la respuesta es de una lección o de un simulacro.
+  sesionLeccionId   String?
+  sesionLeccion     SesionLeccion?   @relation(fields: [sesionLeccionId], references: [id], onDelete: Cascade)
+  sesionSimulacroId String?
+  sesionSimulacro   SesionSimulacro? @relation(fields: [sesionSimulacroId], references: [id], onDelete: Cascade)
+  preguntaId        String
+  pregunta          Pregunta         @relation(fields: [preguntaId], references: [id], onDelete: Cascade)
+  esCorrecta        Boolean
+  numeroIntento     Int              @default(1)
+  creadoEn          DateTime         @default(now())
+
+  @@index([estudianteId])
+  @@index([preguntaId])
+  @@index([sesionLeccionId])
+  @@index([sesionSimulacroId])
+  @@map("respuestas_registro")
+}
+
+model Simulacro {
+  id               String               @id @default(uuid())
+  nombre           String
+  duracionSegundos Int
+  numeroPreguntas  Int                  @default(10)
+  unidadesIds      String[] // unidades de las que se pueden tomar preguntas
+  sesiones         SesionSimulacro[]
+  resultados       SimulacroResultado[]
+
+  @@map("simulacros")
+}
+
+// Un intento de simulacro. Las preguntas sorteadas y la hora límite quedan en el
+// servidor: el tiempo no depende del reloj del dispositivo del niño.
+model SesionSimulacro {
+  id           String              @id @default(uuid())
+  simulacroId  String
+  simulacro    Simulacro           @relation(fields: [simulacroId], references: [id], onDelete: Cascade)
+  estudianteId String
+  estudiante   Estudiante          @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  iniciadaEn   DateTime            @default(now())
+  venceEn      DateTime
+  preguntasIds String[] // en el orden en que se presentan
+  finalizadaEn DateTime?
+  respuestas   RespuestaRegistro[]
+  resultado    SimulacroResultado?
+
+  @@index([estudianteId])
+  @@map("sesiones_simulacro")
+}
+
+model SimulacroResultado {
+  id                      String          @id @default(uuid())
+  simulacroId             String
+  simulacro               Simulacro       @relation(fields: [simulacroId], references: [id], onDelete: Cascade)
+  estudianteId            String
+  estudiante              Estudiante      @relation(fields: [estudianteId], references: [id], onDelete: Cascade)
+  sesionSimulacroId       String          @unique
+  sesionSimulacro         SesionSimulacro @relation(fields: [sesionSimulacroId], references: [id], onDelete: Cascade)
+  puntajePorcentaje       Int
+  correctas               Int
+  incorrectas             Int
+  sinResponder            Int             @default(0) // si se acabó el tiempo (spec.md §4, flujo 3)
+  tiempoUtilizadoSegundos Int
+  puntos                  Int             @default(0)
+  unidadesAReforzarIds    String[] // "temas a reforzar" (spec.md §3, módulo de simulacros)
+  creadoEn                DateTime        @default(now())
+
+  @@index([estudianteId])
+  @@map("simulacro_resultados")
+}
